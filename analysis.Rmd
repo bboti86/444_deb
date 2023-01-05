@@ -1,0 +1,91 @@
+---
+title: "Több Debrecent a 444-re"
+output: html_notebook
+---
+
+```{r libraries}
+library(tidyverse)
+library(rvest)
+library(lubridate)
+library(robotstxt)
+
+```
+
+```{r robots.txt}
+paths_allowed(
+  paths  = "/tag/debrecen", 
+  domain = "444.hu", 
+  bot    = "*"
+)
+```
+
+
+
+```{r Megyei jogú városok}
+megyei_jogu_varosok <- c("baja", "bekescsaba", "debrecen", "dunaujvaros", 
+"eger", "erd", "esztergom", "gyor", "hodmezovasarhely", "kaposvar", 
+"kecskemet", "miskolc", "nagykanizsa", "nyiregyhaza", "pecs", "salgotarjan", 
+"sopron", "szeged", "szekesfehervar", "szekszard", "szolnok", "szombathely", 
+"tatabanya", "veszprem", "zalaegerszeg", "felcsut")
+```
+
+
+```{r}
+results <- tibble(city = "test", age_of_article = dseconds(0)) 
+
+```
+
+
+```{r iterate on cities}
+
+link_seed <- "https://444.hu/tag/"
+
+for (city in megyei_jogu_varosok) {
+  
+  page_link <- str_c(link_seed, city)
+  
+  page <- read_html(page_link)
+  
+  articles <- page %>% html_elements("article") %>% 
+    html_text2() 
+  
+  age_of_article <- str_extract(articles[15], "\\d\\d\\d\\d \\w+ \\d+") %>% 
+    str_replace_all("október", "october") %>% 
+    str_replace_all("július", "july") %>%
+    ymd(tz = "Europe/Budapest") %>% 
+    interval(today()) %>% 
+    int_length() %>% 
+    duration() 
+  
+  results <- results %>% 
+    add_row(city = city, age_of_article = age_of_article)
+  
+  Sys.sleep(3)
+}
+
+```
+
+```{r}
+results %>% 
+  filter(city != "test") %>%
+  mutate(city = str_to_title(city)) %>%
+  mutate(city_fct = fct_reorder(city, age_of_article)) %>%
+  mutate(deb = if_else(city == "Debrecen", TRUE, FALSE)) %>%
+  ggplot(aes(x = city_fct, y = age_of_article, fill = deb)) + 
+  geom_col() +
+  theme_minimal() + 
+  coord_flip() + 
+  theme(legend.position = "none", 
+        axis.text.x = element_blank()) +
+  labs(title = "Debrecen a 444-en", 
+       y = "Elmúlt 15 cikkben lefedett időintervallum hossza", 
+       x = "Megyei jogú város")
+```
+
+```{r}
+results %>% 
+  filter(city %in% c("pecs", "gyor", "miskolc", "szeged", "debrecen", "sopron", "felcsut")) %>%
+  arrange(desc(age_of_article))
+```
+
+
